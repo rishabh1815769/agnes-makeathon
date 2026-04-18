@@ -72,7 +72,7 @@ const navSections: NavSection[] = [
     items: [
       { title: "Products", icon: CubeIcon, href: "/master-data/products" },
       { title: "Groups", icon: CirclesThreePlusIcon, href: "/master-data/groups" },
-      { title: "Warehouses", icon: PackageIcon, href: "/master-data/warehouses" },
+      { title: "Companies", icon: PackageIcon, href: "/master-data/companies" },
       { title: "Suppliers", icon: HandCoinsIcon, href: "/master-data/suppliers" },
     ],
   },

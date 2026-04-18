@@ -77,6 +77,14 @@ class ProductSummary(BaseModel):
     material_name: str | None = None
 
 
+class CompanySummary(BaseModel):
+    Id: int
+    Name: str
+    ProductCount: int
+    SupplierCount: int
+    SupplierNames: list[str] = Field(default_factory=list)
+
+
 def _part_text(part: Any) -> str:
     text = getattr(part, "text", None)
     if isinstance(text, str):
@@ -172,6 +180,57 @@ async def list_products(limit: int = Query(default=500, ge=1, le=2000)) -> list[
         raise HTTPException(
             status_code=500,
             detail="Failed to read products from database.",
+        ) from exc
+
+
+@app.get("/api/companies", response_model=list[CompanySummary])
+async def list_companies(limit: int = Query(default=500, ge=1, le=2000)) -> list[CompanySummary]:
+    if not DB_PATH.exists():
+        raise HTTPException(status_code=500, detail="Companies database file is missing.")
+
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT
+                    c.Id,
+                    c.Name,
+                    COUNT(DISTINCT p.Id) AS ProductCount,
+                    COUNT(DISTINCT s.Id) AS SupplierCount,
+                    GROUP_CONCAT(DISTINCT s.Name) AS SupplierNamesCsv
+                FROM Company c
+                LEFT JOIN Product p ON p.CompanyId = c.Id
+                LEFT JOIN Supplier_Product sp ON sp.ProductId = p.Id
+                LEFT JOIN Supplier s ON s.Id = sp.SupplierId
+                GROUP BY c.Id, c.Name
+                ORDER BY c.Name
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+
+        result: list[CompanySummary] = []
+        for row in rows:
+            row_data = dict(row)
+            raw_suppliers = row_data.pop("SupplierNamesCsv", None)
+            if isinstance(raw_suppliers, str) and raw_suppliers.strip():
+                supplier_names = sorted({name.strip() for name in raw_suppliers.split(",") if name.strip()})
+            else:
+                supplier_names = []
+
+            result.append(
+                CompanySummary(
+                    **row_data,
+                    SupplierNames=supplier_names,
+                )
+            )
+
+        return result
+    except sqlite3.Error as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to read companies from database.",
         ) from exc
 
 
