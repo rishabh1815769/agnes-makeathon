@@ -23,7 +23,6 @@ type ProductRow = {
   CompanyName: string | null
   Type: string | null
   material_name: string | null
-  SupplierCount: number
 }
 
 export default function ProductsPage() {
@@ -93,46 +92,40 @@ export default function ProductsPage() {
         product.CompanyName ?? "",
         product.Type ?? "",
         product.material_name ?? "",
-        String(product.SupplierCount),
       ].some((value) => value.toLowerCase().includes(normalizedQuery))
     })
   }, [products, query, typeFilter])
 
   const totalProducts = products.length
-  const totalSuppliersLinked = products.reduce((acc, row) => acc + row.SupplierCount, 0)
+  const totalTypes = new Set(products.map((row) => row.Type).filter(Boolean)).size
   const materialsTracked = products.filter((row) => Boolean(row.material_name)).length
   const filteredCount = filteredProducts.length
 
   return (
     <main className="space-y-6 p-6 md:p-8">
-      <section className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/15 via-primary/5 to-background p-6 shadow-sm">
-        <div className="absolute -top-10 right-8 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />
+      <section className="rounded-lg border bg-card p-6 text-card-foreground">
         <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Products</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-          Unified product master data from FastAPI, including company attribution, material metadata,
-          and supplier coverage.
-        </p>
         <p className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">
           {filteredCount} shown of {totalProducts} products
         </p>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-3">
-        <article className="rounded-xl border bg-card/80 p-4 shadow-sm backdrop-blur-sm">
+        <article className="rounded-lg border bg-card p-4 text-card-foreground">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Products</p>
           <p className="mt-2 text-2xl font-semibold">{totalProducts}</p>
         </article>
-        <article className="rounded-xl border bg-card/80 p-4 shadow-sm backdrop-blur-sm">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Supplier Links</p>
-          <p className="mt-2 text-2xl font-semibold">{totalSuppliersLinked}</p>
+        <article className="rounded-lg border bg-card p-4 text-card-foreground">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Product Types</p>
+          <p className="mt-2 text-2xl font-semibold">{totalTypes}</p>
         </article>
-        <article className="rounded-xl border bg-card/80 p-4 shadow-sm backdrop-blur-sm">
+        <article className="rounded-lg border bg-card p-4 text-card-foreground">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Materials Tracked</p>
           <p className="mt-2 text-2xl font-semibold">{materialsTracked}</p>
         </article>
       </section>
 
-      <section className="space-y-4 rounded-2xl border bg-gradient-to-b from-card to-card/70 p-4 shadow-sm md:p-5">
+      <section className="space-y-4 rounded-lg border bg-card p-4 text-card-foreground md:p-5">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-1 flex-col gap-2 sm:flex-row">
             <Input
@@ -144,7 +137,7 @@ export default function ProductsPage() {
             <select
               value={typeFilter}
               onChange={(event) => setTypeFilter(event.target.value)}
-              className="h-9 rounded-md border bg-background px-3 text-sm"
+              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {productTypes.map((value) => (
                 <option key={value} value={value}>
@@ -168,12 +161,11 @@ export default function ProductsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[14%] text-center">Product ID</TableHead>
-                <TableHead className="w-[22%] text-left">Product SKU</TableHead>
-                <TableHead className="w-[16%] text-center">Company Name</TableHead>
-                <TableHead className="w-[16%] text-center">Product Type</TableHead>
-                <TableHead className="w-[16%] text-center">Material Name</TableHead>
-                <TableHead className="w-[16%] text-center">Supplier Count</TableHead>
+                <TableHead className="w-[16%] text-center">Product ID</TableHead>
+                <TableHead className="w-[32%] text-left">Product SKU</TableHead>
+                <TableHead className="w-[17%] text-center">Company Name</TableHead>
+                <TableHead className="w-[17%] text-center">Product Type</TableHead>
+                <TableHead className="w-[18%] text-center">Material Name</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -185,14 +177,13 @@ export default function ProductsPage() {
                       <TableCell className="text-center"><Skeleton className="mx-auto h-4 w-36" /></TableCell>
                       <TableCell className="text-center"><Skeleton className="mx-auto h-4 w-24" /></TableCell>
                       <TableCell className="text-center"><Skeleton className="mx-auto h-4 w-56" /></TableCell>
-                      <TableCell className="text-center"><Skeleton className="mx-auto h-4 w-10" /></TableCell>
                     </TableRow>
                   ))
                 : null}
 
               {!loading && filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                     No products match the current filters.
                   </TableCell>
                 </TableRow>
@@ -208,7 +199,6 @@ export default function ProductsPage() {
                       </TableCell>
                       <TableCell className="align-top text-center break-words">{row.Type || "-"}</TableCell>
                       <TableCell className="align-top text-center break-words">{row.material_name || "-"}</TableCell>
-                      <TableCell className="align-top text-center font-semibold">{row.SupplierCount}</TableCell>
                     </TableRow>
                   ))
                 : null}

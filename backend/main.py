@@ -75,7 +75,6 @@ class ProductSummary(BaseModel):
     CompanyName: str | None = None
     Type: str | None = None
     material_name: str | None = None
-    SupplierCount: int
 
 
 def _part_text(part: Any) -> str:
@@ -159,12 +158,9 @@ async def list_products(limit: int = Query(default=500, ge=1, le=2000)) -> list[
                     p.CompanyId,
                     c.Name AS CompanyName,
                     p.Type,
-                    p.material_name,
-                    COUNT(DISTINCT sp.SupplierId) AS SupplierCount
+                    p.material_name
                 FROM Product p
                 LEFT JOIN Company c ON c.Id = p.CompanyId
-                LEFT JOIN Supplier_Product sp ON sp.ProductId = p.Id
-                GROUP BY p.Id, p.SKU, p.CompanyId, c.Name, p.Type, p.material_name
                 ORDER BY p.Id
                 LIMIT ?
                 """,

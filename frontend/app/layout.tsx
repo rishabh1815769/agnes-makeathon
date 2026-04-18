@@ -31,7 +31,7 @@ export default function RootLayout({
       )}
     >
       <body>
-        <ThemeProvider>
+        <ThemeProvider forcedTheme="dark" defaultTheme="dark" enableSystem={false}>
           <TooltipProvider>
             <SidebarProvider>
               <AppSidebar />
