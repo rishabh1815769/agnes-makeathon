@@ -46,6 +46,6 @@ OUTPUT (STRICT JSON):
 ]
 
 IMPORTANT:
-- Prioritize real-world industrial substitutes
+- DO NOT make up data like supplier names and raw materials. Always provide grounding information for your claims.
 - Avoid hypothetical or lab-only materials
 - Clearly explain trade-offs (e.g., plant vs whey protein differences)
