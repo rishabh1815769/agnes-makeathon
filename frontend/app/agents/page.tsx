@@ -2,6 +2,9 @@
 
 import { FormEvent, useMemo, useState } from "react"
 import { PaperPlaneTiltIcon, RobotIcon, UserIcon } from "@phosphor-icons/react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 
 type ChatMessage = {
   id: string
@@ -16,7 +19,7 @@ const initialMessages: ChatMessage[] = [
   {
     id: "welcome",
     role: "agent",
-    content: "Ask me for substitute materials, and I will return ranked alternatives with supplier evidence.",
+    content: "Hi there! How can I help you today?",
   },
 ]
 
@@ -91,31 +94,33 @@ export default function AgentsPage() {
   }
 
   return (
-    <div className="relative flex h-svh w-full items-center justify-center overflow-hidden bg-slate-950 px-4 py-10 text-slate-100">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.16),transparent_40%),radial-gradient(circle_at_bottom,rgba(59,130,246,0.2),transparent_35%)]" />
-      <section className="relative flex h-full max-h-[760px] w-full max-w-3xl flex-col rounded-2xl border border-white/10 bg-slate-900/70 shadow-[0_0_50px_rgba(15,23,42,0.8)] backdrop-blur-xl">
-        <header className="border-b border-white/10 px-6 py-5">
-          <h1 className="text-2xl font-semibold tracking-tight">Spherecast Agent</h1>
-          <p className="mt-1 text-sm text-slate-300">Running scenario analysis for material substitutions.</p>
+    <div className="flex h-full min-h-svh w-full flex-col bg-background">
+      <section className="flex h-full w-full flex-1 flex-col border-l border-border">
+        <header className="flex flex-col gap-1 border-b border-border bg-card px-6 py-4">
+          <h1 className="text-lg font-semibold text-foreground">Spherecast Agent</h1>
+          <p className="text-xs text-muted-foreground">
+            Running scenario analysis for material substitutions.
+          </p>
         </header>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-background px-6 py-5">
           {messages.map((message) => (
             <article
               key={message.id}
-              className={
+              className={cn(
+                "max-w-[90%] border px-4 py-3",
                 message.role === "user"
-                  ? "ml-auto w-fit max-w-[88%] rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3"
-                  : "mr-auto max-w-[92%] rounded-2xl border border-white/10 bg-slate-800/75 px-4 py-3"
-              }
+                  ? "ml-auto w-fit border-primary/40 bg-primary/10"
+                  : "mr-auto border-border bg-card"
+              )}
             >
-              <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wide text-slate-300">
-                {message.role === "user" ? <UserIcon size={14} /> : <RobotIcon size={14} />}
+              <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                {message.role === "user" ? <UserIcon /> : <RobotIcon />}
                 <span>{message.role === "user" ? "You" : "Agnes Agent"}</span>
               </div>
-              <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{message.content}</p>
+              <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{message.content}</p>
               {message.structuredOutput ? (
-                <pre className="mt-3 overflow-x-auto rounded-lg bg-slate-950/80 p-3 text-xs text-cyan-100">
+                <pre className="mt-3 overflow-x-auto border border-border bg-muted p-3 text-xs text-foreground">
                   {JSON.stringify(message.structuredOutput, null, 2)}
                 </pre>
               ) : null}
@@ -123,28 +128,29 @@ export default function AgentsPage() {
           ))}
 
           {isLoading ? (
-            <div className="mr-auto inline-flex rounded-xl border border-white/10 bg-slate-800/75 px-4 py-3 text-sm text-slate-300">
+            <div className="mr-auto inline-flex border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
               Running scenario analysis...
             </div>
           ) : null}
         </div>
 
-        <form onSubmit={onSubmit} className="border-t border-white/10 p-4">
-          <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2">
-            <input
+        <form onSubmit={onSubmit} className="border-t border-border bg-card px-6 py-4">
+          <div className="flex items-center gap-3">
+            <Input
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Talk to Spherecast"
-              className="h-9 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
+              placeholder="Talk to Agnes"
+              className="h-10 flex-1 text-sm"
             />
-            <button
+            <Button
               type="submit"
               disabled={!canSend}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-cyan-300/30 bg-cyan-400/10 text-cyan-100 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+              size="icon"
+              variant="default"
               aria-label="Send message"
             >
-              <PaperPlaneTiltIcon size={16} />
-            </button>
+              <PaperPlaneTiltIcon />
+            </Button>
           </div>
         </form>
       </section>

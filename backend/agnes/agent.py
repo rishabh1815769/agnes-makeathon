@@ -36,7 +36,7 @@ def load_material_profiles_bulk(items: list[dict]) -> list[dict]:
         SELECT
             sp.ProductId AS ProductId,
             sp.SupplierId AS SupplierId,
-            sp.material_profile
+            sp.material_profile,s.Name as SupplierName
         FROM Supplier_Product sp
         JOIN Product p ON sp.ProductId = p.id
         JOIN Supplier s ON sp.SupplierId = s.id
