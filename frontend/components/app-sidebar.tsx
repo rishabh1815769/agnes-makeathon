@@ -1,6 +1,8 @@
 "use client"
 
 import type { ComponentType } from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 import {
   ChartBarIcon,
   CirclesThreePlusIcon,
@@ -32,6 +34,7 @@ import {
 type NavItem = {
   title: string
   icon: ComponentType<{ className?: string }>
+  href: string
 }
 
 type NavSection = {
@@ -42,40 +45,45 @@ type NavSection = {
 const navSections: NavSection[] = [
   {
     items: [
-      { title: "Cockpit", icon: HouseIcon },
-      { title: "Reports", icon: ChartBarIcon },
-      { title: "Agents", icon: RobotIcon },
+      { title: "Cockpit", icon: HouseIcon, href: "/" },
+      { title: "Reports", icon: ChartBarIcon, href: "/reports" },
+      { title: "Agents", icon: RobotIcon, href: "/agents" },
     ],
   },
   {
     title: "Planning",
     items: [
-      { title: "Assortment", icon: GridFourIcon },
-      { title: "Demand", icon: TrendUpIcon },
-      { title: "Supply", icon: PackageIcon },
+      { title: "Assortment", icon: GridFourIcon, href: "/planning/assortment" },
+      { title: "Demand", icon: TrendUpIcon, href: "/planning/demand" },
+      { title: "Supply", icon: PackageIcon, href: "/planning/supply" },
     ],
   },
   {
     title: "Records",
     items: [
-      { title: "Work Orders", icon: FileTextIcon },
-      { title: "Purchase Orders", icon: ShoppingCartIcon },
-      { title: "Transfer Orders", icon: SwapIcon },
-      { title: "Shipments", icon: TruckIcon },
+      { title: "Work Orders", icon: FileTextIcon, href: "/records/work-orders" },
+      { title: "Purchase Orders", icon: ShoppingCartIcon, href: "/records/purchase-orders" },
+      { title: "Transfer Orders", icon: SwapIcon, href: "/records/transfer-orders" },
+      { title: "Shipments", icon: TruckIcon, href: "/records/shipments" },
     ],
   },
   {
     title: "Master Data",
     items: [
-      { title: "Products", icon: CubeIcon },
-      { title: "Groups", icon: CirclesThreePlusIcon },
-      { title: "Warehouses", icon: PackageIcon },
-      { title: "Suppliers", icon: HandCoinsIcon },
+      { title: "Products", icon: CubeIcon, href: "/master-data/products" },
+      { title: "Groups", icon: CirclesThreePlusIcon, href: "/master-data/groups" },
+      { title: "Warehouses", icon: PackageIcon, href: "/master-data/warehouses" },
+      { title: "Suppliers", icon: HandCoinsIcon, href: "/master-data/suppliers" },
     ],
   },
 ]
 
 export function AppSidebar() {
+  const pathname = usePathname()
+
+  const isActiveRoute = (href: string) =>
+    href === "/" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`)
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -91,11 +99,11 @@ export function AppSidebar() {
               <SidebarMenu>
                 {section.items.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={item.title === "Assortment"}>
-                      <a href="#">
+                    <SidebarMenuButton asChild isActive={isActiveRoute(item.href)}>
+                      <Link href={item.href}>
                         <item.icon />
                         <span>{item.title}</span>
-                      </a>
+                      </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
