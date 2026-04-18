@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import sqlite3
@@ -7,6 +8,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from agnes.agent import root_agent
@@ -77,6 +79,15 @@ class ProductSummary(BaseModel):
     material_name: str | None = None
 
 
+class StreamChunk(BaseModel):
+    type: str
+    session_id: str | None = None
+    text: str | None = None
+    message: str | None = None
+    structured_output: dict[str, Any] | list[Any] | None = None
+    detail: str | None = None
+
+
 class SupplierSummary(BaseModel):
     Id: int
     Name: str
@@ -108,6 +119,32 @@ def _to_jsonable(value: Any) -> Any:
     return value
 
 
+async def _get_structured_output(
+    *,
+    user_id: str,
+    session_id: str,
+    output_key: str = "agnes_structured_output",
+) -> dict[str, Any] | list[Any] | None:
+    session = await session_service.get_session(
+        app_name=APP_NAME,
+        user_id=user_id,
+        session_id=session_id,
+    )
+    if not session or not hasattr(session, "state"):
+        return None
+    value = session.state.get(output_key)
+    jsonable = _to_jsonable(value)
+    if isinstance(jsonable, (dict, list)):
+        return jsonable
+    return None
+
+
+def _stringify_structured_output(value: dict[str, Any] | list[Any] | None) -> str:
+    if value is None:
+        return ""
+    return json.dumps(value, indent=2)
+
+
 async def _ensure_session(user_id: str, session_id: str) -> None:
     try:
         await session_service.create_session(
@@ -118,21 +155,6 @@ async def _ensure_session(user_id: str, session_id: str) -> None:
     except Exception:
         # Session may already exist; that's okay for continued chats.
         return
-
-
-def _parse_structured_output(text: str) -> dict[str, Any] | list[Any] | None:
-    cleaned = text.strip()
-    if not cleaned:
-        return None
-    if not (cleaned.startswith("{") or cleaned.startswith("[")):
-        return None
-    try:
-        parsed = json.loads(cleaned)
-    except json.JSONDecodeError:
-        return None
-    if isinstance(parsed, (dict, list)):
-        return parsed
-    return None
 
 
 def _adk_credentials_configured() -> bool:
@@ -325,6 +347,14 @@ async def agnes_chat(request: ChatRequest) -> ChatResponse:
             ) from exc
         raise
 
+    structured_output = await _get_structured_output(
+        user_id=request.user_id,
+        session_id=session_id,
+    )
+
+    if not final_text and structured_output is not None:
+        final_text = _stringify_structured_output(structured_output)
+
     if not final_text:
         # Fallback to the most recent textual payload if final marker is absent.
         for item in reversed(raw_output):
@@ -341,6 +371,120 @@ async def agnes_chat(request: ChatRequest) -> ChatResponse:
     return ChatResponse(
         session_id=session_id,
         message=final_text,
-        structured_output=_parse_structured_output(final_text),
+        structured_output=structured_output,
         raw_output=raw_output,
+    )
+
+
+@app.post("/api/agents/agnes/chat/stream")
+async def agnes_chat_stream(request: ChatRequest) -> StreamingResponse:
+    prompt = request.message.strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+    if not _adk_credentials_configured():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "ADK credentials are not configured. Set GOOGLE_API_KEY or configure "
+                "Vertex AI credentials (GOOGLE_GENAI_USE_VERTEXAI, GOOGLE_CLOUD_PROJECT, "
+                "GOOGLE_CLOUD_LOCATION)."
+            ),
+        )
+
+    session_id = request.session_id or str(uuid.uuid4())
+    await _ensure_session(user_id=request.user_id, session_id=session_id)
+
+    async def event_stream() -> Any:
+        raw_output: list[dict[str, Any]] = []
+        final_text = ""
+        streamed_text = ""
+
+        yield f"data: {StreamChunk(type='session', session_id=session_id).model_dump_json()}\n\n"
+
+        try:
+            async for event in runner.run_async(
+                user_id=request.user_id,
+                session_id=session_id,
+                new_message=types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text=prompt)],
+                ),
+            ):
+                event_json = _to_jsonable(event)
+                if isinstance(event_json, dict):
+                    raw_output.append(event_json)
+                else:
+                    raw_output.append({"event": str(event_json)})
+
+                content = getattr(event, "content", None)
+                if not content or not getattr(content, "parts", None):
+                    continue
+
+                text = "\n".join(filter(None, (_part_text(part) for part in content.parts))).strip()
+                if not text:
+                    continue
+
+                delta = text
+                if text.startswith(streamed_text):
+                    delta = text[len(streamed_text) :]
+
+                if delta:
+                    streamed_text += delta
+                    yield f"data: {StreamChunk(type='delta', text=delta).model_dump_json()}\n\n"
+
+                if hasattr(event, "is_final_response") and event.is_final_response():
+                    final_text = text
+
+            structured_output = await _get_structured_output(
+                user_id=request.user_id,
+                session_id=session_id,
+            )
+
+            if not final_text and structured_output is not None:
+                final_text = _stringify_structured_output(structured_output)
+
+            if not final_text:
+                # Fallback to the most recent textual payload if final marker is absent.
+                for item in reversed(raw_output):
+                    payload = item.get("content", {})
+                    parts = payload.get("parts", []) if isinstance(payload, dict) else []
+                    texts = [
+                        p.get("text", "") for p in parts if isinstance(p, dict) and p.get("text")
+                    ]
+                    if texts:
+                        final_text = "\n".join(texts).strip()
+                        break
+
+            if not final_text:
+                yield (
+                    "data: "
+                    f"{StreamChunk(type='error', detail='Agent returned an empty response.').model_dump_json()}\n\n"
+                )
+                return
+
+            yield (
+                "data: "
+                f"{StreamChunk(type='final', message=final_text, structured_output=structured_output).model_dump_json()}\n\n"
+            )
+        except ValueError as exc:
+            if "No API key was provided" in str(exc):
+                yield (
+                    "data: "
+                    f"{StreamChunk(type='error', detail='ADK API key is not configured on the backend.').model_dump_json()}\n\n"
+                )
+                return
+            yield f"data: {StreamChunk(type='error', detail=str(exc)).model_dump_json()}\n\n"
+        except Exception as exc:
+            yield f"data: {StreamChunk(type='error', detail=str(exc)).model_dump_json()}\n\n"
+        finally:
+            await asyncio.sleep(0)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )

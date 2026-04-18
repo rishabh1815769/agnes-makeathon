@@ -1,12 +1,29 @@
 from pathlib import Path
 import sqlite3
+from typing import Literal
 
 from BM25 import BM25Search
 from google.adk.agents.llm_agent import Agent
+from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent
 INSTRUCTION_PATH = BASE_DIR / "instruct.txt"
 DB_PATH = BASE_DIR.parent / "database" / "db.sqlite"
+
+
+class SubstituteRecommendation(BaseModel):
+    sku: str
+    supplier_name: str
+    functional_similarity: Literal["high", "medium", "low"]
+    quality_match_score: int = Field(ge=0, le=100)
+    compliance_match: Literal["full", "partial", "none"]
+    certifications: list[str]
+    regulatory_alignment: list[str]
+    dietary_compatibility: str
+    key_advantages: str
+    tradeoffs: str
+    recommended_use_cases: str
+    confidence_score: int = Field(ge=0, le=100)
 
 def load_material_profiles_bulk(items: list[dict]) -> list[dict]:
     """
@@ -35,6 +52,7 @@ def load_material_profiles_bulk(items: list[dict]) -> list[dict]:
     query = f"""
         SELECT
             sp.ProductId AS ProductId,
+            p.SKU as SKU,
             sp.SupplierId AS SupplierId,
             sp.material_profile,s.Name as SupplierName
         FROM Supplier_Product sp
@@ -54,7 +72,9 @@ def load_material_profiles_bulk(items: list[dict]) -> list[dict]:
         {
             "product_id": row["ProductId"],
             "supplier_id": row["SupplierId"],
-            "material_profile": row["material_profile"]
+            "material_profile": row["material_profile"],
+            "supplier_name": row["SupplierName"],
+            "sku": row["SKU"]
         }
         for row in rows
     ]
@@ -112,9 +132,11 @@ def find_similar_material(material: str) -> list[dict]:
     return profiles
 
 root_agent = Agent(
-    model='gemini-3.1-flash-lite-preview',
+    model='gemma-4-31b-it',
     name='agnes_agent',
     description='Make sure to follow the instructions carefully and use the provided tools to find the information needed',
     instruction=INSTRUCTION_PATH.read_text(encoding='utf-8'),
     tools=[find_similar_material],
+    output_schema=list[SubstituteRecommendation],
+    output_key="agnes_structured_output",
 )
