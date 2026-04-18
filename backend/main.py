@@ -1,10 +1,11 @@
 import json
 import os
+import sqlite3
 import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -16,6 +17,7 @@ from google.genai import types
 APP_NAME = "agnes_api"
 DEFAULT_USER_ID = "agnes-web-user"
 BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = BASE_DIR / "database" / "db.sqlite"
 
 
 def _load_local_env_file(path: Path) -> None:
@@ -64,6 +66,16 @@ class ChatResponse(BaseModel):
     message: str
     structured_output: dict[str, Any] | list[Any] | None = None
     raw_output: list[dict[str, Any]]
+
+
+class ProductSummary(BaseModel):
+    Id: int
+    SKU: str
+    CompanyId: int | None = None
+    CompanyName: str | None = None
+    Type: str | None = None
+    material_name: str | None = None
+    SupplierCount: int
 
 
 def _part_text(part: Any) -> str:
@@ -129,6 +141,42 @@ def _adk_credentials_configured() -> bool:
 @app.get("/healthz")
 async def healthz() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/products", response_model=list[ProductSummary])
+async def list_products(limit: int = Query(default=500, ge=1, le=2000)) -> list[ProductSummary]:
+    if not DB_PATH.exists():
+        raise HTTPException(status_code=500, detail="Products database file is missing.")
+
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT
+                    p.Id,
+                    p.SKU,
+                    p.CompanyId,
+                    c.Name AS CompanyName,
+                    p.Type,
+                    p.material_name,
+                    COUNT(DISTINCT sp.SupplierId) AS SupplierCount
+                FROM Product p
+                LEFT JOIN Company c ON c.Id = p.CompanyId
+                LEFT JOIN Supplier_Product sp ON sp.ProductId = p.Id
+                GROUP BY p.Id, p.SKU, p.CompanyId, c.Name, p.Type, p.material_name
+                ORDER BY p.Id
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+
+        return [ProductSummary(**dict(row)) for row in rows]
+    except sqlite3.Error as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to read products from database.",
+        ) from exc
 
 
 @app.post("/api/agents/agnes/chat", response_model=ChatResponse)
