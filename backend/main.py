@@ -94,6 +94,13 @@ class SupplierSummary(BaseModel):
     ProductCount: int
 
 
+class GroupSummary(BaseModel):
+    SKU: str
+    HasBOM: bool
+    BOMComponentCount: int
+    SupplierProductCount: int
+
+
 class CompanySummary(BaseModel):
     Id: int
     Name: str
@@ -239,6 +246,52 @@ async def list_suppliers(limit: int = Query(default=500, ge=1, le=2000)) -> list
         raise HTTPException(
             status_code=500,
             detail="Failed to read suppliers from database.",
+        ) from exc
+
+
+@app.get("/api/groups", response_model=list[GroupSummary])
+async def list_groups(limit: int = Query(default=500, ge=1, le=2000)) -> list[GroupSummary]:
+    if not DB_PATH.exists():
+        raise HTTPException(status_code=500, detail="Groups database file is missing.")
+
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT
+                    p.SKU,
+                    CASE
+                        WHEN EXISTS (
+                            SELECT 1
+                            FROM BOM b
+                            WHERE b.ProducedProductId = p.Id
+                        ) THEN 1
+                        ELSE 0
+                    END AS HasBOM,
+                    (
+                        SELECT COUNT(*)
+                        FROM BOM_Component bc
+                        INNER JOIN BOM b2 ON b2.Id = bc.BOMId
+                        WHERE b2.ProducedProductId = p.Id
+                    ) AS BOMComponentCount,
+                    (
+                        SELECT COUNT(*)
+                        FROM Supplier_Product sp
+                        WHERE sp.ProductId = p.Id
+                    ) AS SupplierProductCount
+                FROM Product p
+                ORDER BY p.SKU
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+
+        return [GroupSummary(**dict(row)) for row in rows]
+    except sqlite3.Error as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to read groups from database.",
         ) from exc
 
 
