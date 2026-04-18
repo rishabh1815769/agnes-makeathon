@@ -79,9 +79,6 @@ export default function SuppliersPage() {
 		<main className="space-y-6 p-6 md:p-8">
 			<section className="rounded-lg border bg-card p-6 text-card-foreground">
 				<h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Suppliers</h1>
-				<p className="mt-2 text-sm text-muted-foreground">
-					Supplier master data from FastAPI with linked product coverage.
-				</p>
 				<p className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">
 					{filteredCount} shown of {totalSuppliers} suppliers
 				</p>
