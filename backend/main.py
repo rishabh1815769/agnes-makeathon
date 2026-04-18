@@ -77,6 +77,12 @@ class ProductSummary(BaseModel):
     material_name: str | None = None
 
 
+class SupplierSummary(BaseModel):
+    Id: int
+    Name: str
+    ProductCount: int
+
+
 class CompanySummary(BaseModel):
     Id: int
     Name: str
@@ -180,6 +186,37 @@ async def list_products(limit: int = Query(default=500, ge=1, le=2000)) -> list[
         raise HTTPException(
             status_code=500,
             detail="Failed to read products from database.",
+        ) from exc
+
+
+@app.get("/api/suppliers", response_model=list[SupplierSummary])
+async def list_suppliers(limit: int = Query(default=500, ge=1, le=2000)) -> list[SupplierSummary]:
+    if not DB_PATH.exists():
+        raise HTTPException(status_code=500, detail="Suppliers database file is missing.")
+
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT
+                    s.Id,
+                    s.Name,
+                    COUNT(DISTINCT sp.ProductId) AS ProductCount
+                FROM Supplier s
+                LEFT JOIN Supplier_Product sp ON sp.SupplierId = s.Id
+                GROUP BY s.Id, s.Name
+                ORDER BY s.Name
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+
+        return [SupplierSummary(**dict(row)) for row in rows]
+    except sqlite3.Error as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to read suppliers from database.",
         ) from exc
 
 

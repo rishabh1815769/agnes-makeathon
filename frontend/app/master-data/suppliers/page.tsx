@@ -1,130 +1,172 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
-type SupplierRow = Record<string, string | number | null>
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table"
 
-type SupplierResponse = {
-	tableName: string
-	columns: string[]
-	rows: SupplierRow[]
-	rowCount: number
-	dbPath: string
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000"
+
+type SupplierRow = {
+	Id: number
+	Name: string
+	ProductCount: number
 }
 
 export default function SuppliersPage() {
-	const [data, setData] = useState<SupplierResponse | null>(null)
+	const [suppliers, setSuppliers] = useState<SupplierRow[]>([])
+	const [query, setQuery] = useState("")
+	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
-	const [isLoading, setIsLoading] = useState(true)
 
-	useEffect(() => {
-		let isMounted = true
+	const loadSuppliers = useCallback(async () => {
+		setLoading(true)
+		setError(null)
 
-		async function loadSuppliers() {
-			setIsLoading(true)
-			setError(null)
+		try {
+			const response = await fetch(`${API_BASE_URL}/api/suppliers`, { cache: "no-store" })
+			const payload = (await response.json()) as SupplierRow[]
 
-			try {
-				const response = await fetch("/api/master-data/suppliers", {
-					cache: "no-store",
-				})
-
-				const payload = (await response.json()) as SupplierResponse | { error: string }
-
-				if (!response.ok) {
-					throw new Error("error" in payload ? payload.error : "Failed to load suppliers.")
-				}
-
-				if (isMounted) {
-					setData(payload as SupplierResponse)
-				}
-			} catch (loadError) {
-				if (!isMounted) return
-				setError(loadError instanceof Error ? loadError.message : "Failed to load suppliers.")
-			} finally {
-				if (isMounted) {
-					setIsLoading(false)
-				}
+			if (!response.ok) {
+				throw new Error("Unable to load suppliers from backend.")
 			}
-		}
 
-		void loadSuppliers()
-
-		return () => {
-			isMounted = false
+			setSuppliers(Array.isArray(payload) ? payload : [])
+		} catch (loadError) {
+			const message =
+				loadError instanceof Error
+					? loadError.message
+					: "Unexpected error while loading suppliers."
+			setError(message)
+			setSuppliers([])
+		} finally {
+			setLoading(false)
 		}
 	}, [])
 
-	const hasRows = (data?.rows.length ?? 0) > 0
-	const rowCountLabel = useMemo(() => {
-		const count = data?.rowCount ?? 0
-		return `${count} supplier${count === 1 ? "" : "s"}`
-	}, [data?.rowCount])
+	useEffect(() => {
+		// eslint-disable-next-line react-hooks/set-state-in-effect
+		void loadSuppliers()
+	}, [loadSuppliers])
+
+	const filteredSuppliers = useMemo(() => {
+		const normalizedQuery = query.trim().toLowerCase()
+		if (!normalizedQuery) {
+			return suppliers
+		}
+
+		return suppliers.filter((supplier) =>
+			[String(supplier.Id), supplier.Name, String(supplier.ProductCount)].some((value) =>
+				value.toLowerCase().includes(normalizedQuery)
+			)
+		)
+	}, [suppliers, query])
+
+	const totalSuppliers = suppliers.length
+	const totalLinkedProducts = suppliers.reduce((acc, supplier) => acc + supplier.ProductCount, 0)
+	const filteredCount = filteredSuppliers.length
 
 	return (
-		<main className="min-h-svh bg-background px-4 py-6 md:px-8">
-			<section className="mx-auto w-full max-w-7xl rounded-xl border border-border bg-card shadow-sm">
-				<header className="border-b border-border px-5 py-4 md:px-6">
-					<h1 className="text-xl font-semibold text-card-foreground md:text-2xl">Suppliers</h1>
-					<p className="mt-1 text-sm text-muted-foreground">
-						{isLoading ? "Loading suppliers..." : rowCountLabel}
-					</p>
-				</header>
+		<main className="space-y-6 p-6 md:p-8">
+			<section className="rounded-lg border bg-card p-6 text-card-foreground">
+				<h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Suppliers</h1>
+				<p className="mt-2 text-sm text-muted-foreground">
+					Supplier master data from FastAPI with linked product coverage.
+				</p>
+				<p className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">
+					{filteredCount} shown of {totalSuppliers} suppliers
+				</p>
+			</section>
+
+			<section className="grid gap-3 sm:grid-cols-3">
+				<article className="rounded-lg border bg-card p-4 text-card-foreground">
+					<p className="text-xs uppercase tracking-wide text-muted-foreground">Total Suppliers</p>
+					<p className="mt-2 text-2xl font-semibold">{totalSuppliers}</p>
+				</article>
+				<article className="rounded-lg border bg-card p-4 text-card-foreground">
+					<p className="text-xs uppercase tracking-wide text-muted-foreground">Linked Products</p>
+					<p className="mt-2 text-2xl font-semibold">{totalLinkedProducts}</p>
+				</article>
+				<article className="rounded-lg border bg-card p-4 text-card-foreground">
+					<p className="text-xs uppercase tracking-wide text-muted-foreground">Visible Suppliers</p>
+					<p className="mt-2 text-2xl font-semibold">{filteredCount}</p>
+				</article>
+			</section>
+
+			<section className="space-y-4 rounded-lg border bg-card p-4 text-card-foreground md:p-5">
+				<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+					<Input
+						value={query}
+						onChange={(event) => setQuery(event.target.value)}
+						placeholder="Search supplier name or product count..."
+						className="sm:max-w-md"
+					/>
+					<Button onClick={() => void loadSuppliers()} disabled={loading}>
+						{loading ? "Loading..." : "Refresh"}
+					</Button>
+				</div>
 
 				{error ? (
-					<div className="px-5 py-6 text-sm text-destructive md:px-6">{error}</div>
-				) : null}
-
-				{!error && isLoading ? (
-					<div className="px-5 py-6 text-sm text-muted-foreground md:px-6">Fetching data from SQLite...</div>
-				) : null}
-
-				{!error && !isLoading && !hasRows ? (
-					<div className="px-5 py-6 text-sm text-muted-foreground md:px-6">No supplier records found.</div>
-				) : null}
-
-				{!error && !isLoading && hasRows ? (
-					<div className="w-full overflow-x-auto">
-						<table className="min-w-full border-separate border-spacing-0 text-sm">
-							<thead>
-								<tr>
-									{data?.columns.map((column) => (
-										<th
-											key={column}
-											scope="col"
-											className="sticky top-0 border-b border-border bg-muted px-4 py-3 text-left font-medium text-muted-foreground"
-										>
-											{column}
-										</th>
-									))}
-								</tr>
-							</thead>
-							<tbody>
-								{data?.rows.map((row, index) => (
-									<tr
-										key={`${index}-${String(row[data.columns[0]] ?? "row")}`}
-										className="odd:bg-background even:bg-muted/20"
-									>
-										{data.columns.map((column) => (
-											<td
-												key={`${index}-${column}`}
-												className="border-b border-border px-4 py-2 align-top text-card-foreground"
-											>
-												{row[column] === null || row[column] === "" ? "-" : String(row[column])}
-											</td>
-										))}
-									</tr>
-								))}
-							</tbody>
-						</table>
+					<div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+						{error}
 					</div>
 				) : null}
 
-				{!error && !isLoading && data ? (
-					<footer className="border-t border-border px-5 py-3 text-xs text-muted-foreground md:px-6">
-						Source table: {data.tableName}
-					</footer>
-				) : null}
+				<div className="rounded-md border">
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead className="w-1/3 text-center">Supplier ID</TableHead>
+								<TableHead className="w-1/3 text-center">Supplier Name</TableHead>
+								<TableHead className="w-1/3 text-center">Products</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{loading
+								? Array.from({ length: 8 }).map((_, index) => (
+										<TableRow key={`suppliers-skeleton-${index}`}>
+											<TableCell className="text-center">
+												<Skeleton className="mx-auto h-4 w-10" />
+											</TableCell>
+											<TableCell>
+												<Skeleton className="h-4 w-40" />
+											</TableCell>
+											<TableCell className="text-center">
+												<Skeleton className="mx-auto h-4 w-10" />
+											</TableCell>
+										</TableRow>
+									))
+								: null}
+
+							{!loading && filteredSuppliers.length === 0 ? (
+								<TableRow>
+									<TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+										No suppliers match the current search.
+									</TableCell>
+								</TableRow>
+							) : null}
+
+							{!loading
+								? filteredSuppliers.map((row) => (
+										<TableRow key={row.Id}>
+											<TableCell className="text-center text-xs text-muted-foreground">{row.Id}</TableCell>
+											<TableCell className="text-center font-medium">{row.Name}</TableCell>
+											<TableCell className="text-center">{row.ProductCount}</TableCell>
+										</TableRow>
+									))
+								: null}
+						</TableBody>
+					</Table>
+				</div>
 			</section>
 		</main>
 	)
