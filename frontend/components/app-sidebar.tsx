@@ -4,19 +4,13 @@ import type { ComponentType } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  ChartBarIcon,
   CirclesThreePlusIcon,
   CubeIcon,
-  FileTextIcon,
-  GridFourIcon,
   HandCoinsIcon,
   HouseIcon,
   PackageIcon,
   RobotIcon,
   ShoppingCartIcon,
-  SwapIcon,
-  TrendUpIcon,
-  TruckIcon,
 } from "@phosphor-icons/react"
 
 import {
@@ -45,27 +39,13 @@ type NavSection = {
 const navSections: NavSection[] = [
   {
     items: [
-      { title: "Cockpit", icon: HouseIcon, href: "/" },
-      { title: "Reports", icon: ChartBarIcon, href: "/reports" },
+      { title: "Home", icon: HouseIcon, href: "/" },
       { title: "Agents", icon: RobotIcon, href: "/agents" },
     ],
   },
   {
-    title: "Planning",
-    items: [
-      { title: "Assortment", icon: GridFourIcon, href: "/planning/assortment" },
-      { title: "Demand", icon: TrendUpIcon, href: "/planning/demand" },
-      { title: "Supply", icon: PackageIcon, href: "/planning/supply" },
-    ],
-  },
-  {
     title: "Records",
-    items: [
-      { title: "Work Orders", icon: FileTextIcon, href: "/records/work-orders" },
-      { title: "Purchase Orders", icon: ShoppingCartIcon, href: "/records/purchase-orders" },
-      { title: "Transfer Orders", icon: SwapIcon, href: "/records/transfer-orders" },
-      { title: "Shipments", icon: TruckIcon, href: "/records/shipments" },
-    ],
+    items: [{ title: "Purchase Orders", icon: ShoppingCartIcon, href: "/records/purchase-orders" }],
   },
   {
     title: "Master Data",
