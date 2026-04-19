@@ -21,26 +21,6 @@ Prototype built for the **TUM.ai × Spherecast** hackathon: an AI assistant that
 - Added 'material_name' column in the 'Product' table which is a human/AI readable version of SKU. This is used by the agent harness to find information about the raw materials. 
 - Added 'material_profile' column to the 'Supplier_Product' table to add the enriched information about raw materials, eg. Certifications, nutritional value, ingredient profile etc.
 
-### Data Enrichment Strategy
-
-Enrichment is driven by the **Hermes agent harness** skill [`supplier-material-profiling`](hermes-agent-harness/supplier-material-profiling/SKILL.md): it reads supplier and raw-material rows from **SQLite**, researches each material on the **web** (browser toolset), and writes **structured, comparable** profiles back to **`Supplier_Product`** so Agnes and BM25-style matching can use richer facts than SKU text alone.
-
-- **Inputs**: database path, an optional SQL query (otherwise a default join on `Product`, `Supplier_Product`, and `Supplier` returning supplier name and `Product.material_name`), and rules for granularity (per row, per unique material, or supplier-specific when facts differ).
-- **Preparation**: normalize material labels (strip packaging noise, keep grades or chemical identifiers, dedupe) so research keys stay stable and work is not repeated unnecessarily.
-- **Research**: prefer supplier product pages, technical or product data sheets, SDS where relevant, certification or compliance documents, then official regulatory or nutrition databases; use secondary sources only when primaries are missing. Important claims are cross-checked when ambiguous.
-- **Output shape**: compact structured profiles (for example certifications, ingredient profile, nutritional values, allergens, functional properties, processing, origin, specifications, compliance notes, cited **sources**, and a **confidence** level) rather than long prose, serialized to the material profile column so rows stay machine-usable.
-- **Safety and auditability**: do not invent certifications, percentages, or nutrition facts; persist uncertainty, conflicts, and unresolved materials explicitly; verify updates with read-back queries and transactions when batching writes.
-
-The skill file documents required tools (terminal/SQLite access and browser tooling), SQLite details such as quoting hyphenated column names when applicable, failure handling, and reporting expectations for a completed enrichment run.
-
-**Hermes harness (examples).** Browser automation trace while researching a supplier site (navigate, click, snapshot, console checks):
-
-![Hermes browser tool trace during supplier and material web research](./hermes-agent-harness/Screenshot_2026-04-19_085316.png)
-
-Structured facts gathered from a public product page (example: whey protein isolate on Actus Nutrition—product link, protein level, sourcing notes, origin, certifications):
-
-![Hermes structured material profile extraction from a supplier page](./hermes-agent-harness/Screenshot_2026-04-19_085409.png)
-
 ```mermaid
 erDiagram
   Company ||--o{ Product : offers
@@ -83,6 +63,26 @@ erDiagram
     string material_profile
   }
 ```
+
+### Data Enrichment Strategy
+
+Enrichment is driven by the **Hermes agent harness** skill [`supplier-material-profiling`](hermes-agent-harness/supplier-material-profiling/SKILL.md): it reads supplier and raw-material rows from **SQLite**, researches each material on the **web** (browser toolset), and writes **structured, comparable** profiles back to **`Supplier_Product`** so Agnes and BM25-style matching can use richer facts than SKU text alone.
+
+- **Inputs**: database path, an optional SQL query (otherwise a default join on `Product`, `Supplier_Product`, and `Supplier` returning supplier name and `Product.material_name`), and rules for granularity (per row, per unique material, or supplier-specific when facts differ).
+- **Preparation**: normalize material labels (strip packaging noise, keep grades or chemical identifiers, dedupe) so research keys stay stable and work is not repeated unnecessarily.
+- **Research**: prefer supplier product pages, technical or product data sheets, SDS where relevant, certification or compliance documents, then official regulatory or nutrition databases; use secondary sources only when primaries are missing. Important claims are cross-checked when ambiguous.
+- **Output shape**: compact structured profiles (for example certifications, ingredient profile, nutritional values, allergens, functional properties, processing, origin, specifications, compliance notes, cited **sources**, and a **confidence** level) rather than long prose, serialized to the material profile column so rows stay machine-usable.
+- **Safety and auditability**: do not invent certifications, percentages, or nutrition facts; persist uncertainty, conflicts, and unresolved materials explicitly; verify updates with read-back queries and transactions when batching writes.
+
+The skill file documents required tools (terminal/SQLite access and browser tooling), SQLite details such as quoting hyphenated column names when applicable, failure handling, and reporting expectations for a completed enrichment run.
+
+**Hermes harness (examples).** Browser automation trace while researching a supplier site (navigate, click, snapshot, console checks):
+
+![Hermes browser tool trace during supplier and material web research](./hermes-agent-harness/Screenshot_2026-04-19_085316.png)
+
+Structured facts gathered from a public product page (example: whey protein isolate on Actus Nutrition—product link, protein level, sourcing notes, origin, certifications):
+
+![Hermes structured material profile extraction from a supplier page](./hermes-agent-harness/Screenshot_2026-04-19_085409.png)
 
 
 ### System context
