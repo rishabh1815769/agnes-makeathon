@@ -2,6 +2,8 @@
 
 Prototype built for the **TUM.ai × Spherecast** hackathon: an AI assistant that helps explore **raw-material substitutes**, supplier context, and structured recommendations over provided **BOM and supplier data**.
 
+![Agent Run](image.png)
+
 ## Hackathon and challenge
 
 **Spherecast** frames the problem around **Agnes**, an AI supply chain manager: fragmented purchasing hides real volume, consolidation only helps when materials are truly substitutable, and any recommendation must remain defensible on **quality and compliance**.

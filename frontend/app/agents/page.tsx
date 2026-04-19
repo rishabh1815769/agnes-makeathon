@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useEffect, useMemo, useState } from "react"
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import { PaperPlaneTiltIcon, RobotIcon, UserIcon } from "@phosphor-icons/react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -105,12 +105,24 @@ const similarityTone = (
   return "outline"
 }
 
+const recommendationCardKey = (messageId: string, index: number) => `${messageId}-${index}`
+
 export default function AgentsPage() {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined)
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [loadingStatusIndex, setLoadingStatusIndex] = useState(0)
+  const [dismissedRecommendationKeys, setDismissedRecommendationKeys] = useState<Set<string>>(
+    () => new Set()
+  )
+  const [purchaseOrderCreatedKeys, setPurchaseOrderCreatedKeys] = useState<Set<string>>(
+    () => new Set()
+  )
+  const [creatingPurchaseOrderKey, setCreatingPurchaseOrderKey] = useState<string | null>(null)
+  const [purchaseOrderActionErrors, setPurchaseOrderActionErrors] = useState<Record<string, string>>(
+    {}
+  )
   const canSend = useMemo(() => input.trim().length > 0 && !isLoading, [input, isLoading])
 
   useEffect(() => {
@@ -129,6 +141,54 @@ export default function AgentsPage() {
 
     return () => window.clearTimeout(timeout)
   }, [isLoading, loadingStatusIndex])
+
+  const rejectRecommendation = useCallback((messageId: string, index: number) => {
+    const key = recommendationCardKey(messageId, index)
+    setDismissedRecommendationKeys((prev) => new Set(prev).add(key))
+  }, [])
+
+  const createPurchaseOrderForRecommendation = useCallback(
+    async (messageId: string, index: number, recommendation: Recommendation) => {
+      const key = recommendationCardKey(messageId, index)
+      setPurchaseOrderActionErrors((prev) => {
+        const next = { ...prev }
+        delete next[key]
+        return next
+      })
+      setCreatingPurchaseOrderKey(key)
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/purchase-orders`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            supplier_name: recommendation.supplier_name,
+            sku: recommendation.sku,
+          }),
+        })
+        const payloadUnknown: unknown = await response.json().catch(() => null)
+        if (!response.ok) {
+          let detail = `Request failed with status ${response.status}`
+          if (payloadUnknown && typeof payloadUnknown === "object" && "detail" in payloadUnknown) {
+            const d = (payloadUnknown as { detail: unknown }).detail
+            if (typeof d === "string") {
+              detail = d
+            } else if (Array.isArray(d)) {
+              detail = d.map(String).join(", ")
+            }
+          }
+          throw new Error(detail)
+        }
+        setPurchaseOrderCreatedKeys((prev) => new Set(prev).add(key))
+      } catch (err) {
+        const messageText =
+          err instanceof Error ? err.message : "Unable to create purchase order."
+        setPurchaseOrderActionErrors((prev) => ({ ...prev, [key]: messageText }))
+      } finally {
+        setCreatingPurchaseOrderKey(null)
+      }
+    },
+    []
+  )
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -284,77 +344,138 @@ export default function AgentsPage() {
               {message.structuredOutput ? (
                 <div className="mt-3 flex flex-col gap-3">
                   {asRecommendations(message.structuredOutput).length > 0 ? (
-                    asRecommendations(message.structuredOutput).map((recommendation, index) => (
-                      <Card key={`${message.id}-recommendation-${index}`} className="bg-background">
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-base">
-                            {index + 1}. {recommendation.sku}
-                          </CardTitle>
-                          <CardDescription>
-                            Supplier: {recommendation.supplier_name}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent className="flex flex-col gap-3">
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant={similarityTone(recommendation.functional_similarity)}>
-                              Functional Similarity: {recommendation.functional_similarity}
-                            </Badge>
-                            <Badge variant={scoreTone(recommendation.quality_match_score)}>
-                              Quality Score: {recommendation.quality_match_score}/100
-                            </Badge>
-                            <Badge variant={complianceTone(recommendation.compliance_match)}>
-                              Compliance: {recommendation.compliance_match}
-                            </Badge>
-                            <Badge variant={scoreTone(recommendation.confidence_score)}>
-                              Confidence: {recommendation.confidence_score}/100
-                            </Badge>
-                          </div>
+                    asRecommendations(message.structuredOutput)
+                      .map((recommendation, index) => ({ recommendation, index }))
+                      .filter(
+                        ({ index }) =>
+                          !dismissedRecommendationKeys.has(
+                            recommendationCardKey(message.id, index)
+                          )
+                      )
+                      .map(({ recommendation, index }) => {
+                        const cardKey = recommendationCardKey(message.id, index)
+                        const poCreated = purchaseOrderCreatedKeys.has(cardKey)
+                        const isCreating = creatingPurchaseOrderKey === cardKey
+                        const actionError = purchaseOrderActionErrors[cardKey]
 
-                          <div className="flex flex-col gap-1">
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Dietary Compatibility
-                            </p>
-                            <p className="text-sm text-foreground">{recommendation.dietary_compatibility}</p>
-                          </div>
-
-                          <Separator />
-
-                          <div className="flex flex-col gap-1">
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Key Advantages
-                            </p>
-                            <p className="text-sm text-foreground">{recommendation.key_advantages}</p>
-                          </div>
-
-                          <div className="flex flex-col gap-1">
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Trade-offs
-                            </p>
-                            <p className="text-sm text-foreground">{recommendation.tradeoffs}</p>
-                          </div>
-
-                          <div className="flex flex-col gap-1">
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Recommended Use Cases
-                            </p>
-                            <p className="text-sm text-foreground">{recommendation.recommended_use_cases}</p>
-                          </div>
-
-                          <div className="flex flex-col gap-2">
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Certifications
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {recommendation.certifications.map((cert) => (
-                                <Badge key={cert} variant="secondary">
-                                  {cert}
+                        return (
+                          <Card
+                            key={`${message.id}-recommendation-${index}`}
+                            className="bg-background"
+                          >
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-base">
+                                {index + 1}. {recommendation.sku}
+                              </CardTitle>
+                              <CardDescription>
+                                Supplier: {recommendation.supplier_name}
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex flex-col gap-3">
+                              <div className="flex flex-wrap gap-2">
+                                <Badge
+                                  variant={similarityTone(recommendation.functional_similarity)}
+                                >
+                                  Functional Similarity: {recommendation.functional_similarity}
                                 </Badge>
-                              ))}
-                            </div>
-                          </div>                          
-                        </CardContent>
-                      </Card>
-                    ))
+                                <Badge variant={scoreTone(recommendation.quality_match_score)}>
+                                  Quality Score: {recommendation.quality_match_score}/100
+                                </Badge>
+                                <Badge variant={complianceTone(recommendation.compliance_match)}>
+                                  Compliance: {recommendation.compliance_match}
+                                </Badge>
+                                <Badge variant={scoreTone(recommendation.confidence_score)}>
+                                  Confidence: {recommendation.confidence_score}/100
+                                </Badge>
+                              </div>
+
+                              <div className="flex flex-col gap-1">
+                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  Dietary Compatibility
+                                </p>
+                                <p className="text-sm text-foreground">
+                                  {recommendation.dietary_compatibility}
+                                </p>
+                              </div>
+
+                              <Separator />
+
+                              <div className="flex flex-col gap-1">
+                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  Key Advantages
+                                </p>
+                                <p className="text-sm text-foreground">{recommendation.key_advantages}</p>
+                              </div>
+
+                              <div className="flex flex-col gap-1">
+                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  Trade-offs
+                                </p>
+                                <p className="text-sm text-foreground">{recommendation.tradeoffs}</p>
+                              </div>
+
+                              <div className="flex flex-col gap-1">
+                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  Recommended Use Cases
+                                </p>
+                                <p className="text-sm text-foreground">
+                                  {recommendation.recommended_use_cases}
+                                </p>
+                              </div>
+
+                              <div className="flex flex-col gap-2">
+                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  Certifications
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {recommendation.certifications.map((cert) => (
+                                    <Badge key={cert} variant="secondary">
+                                      {cert}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <Separator />
+
+                              {actionError ? (
+                                <p className="text-sm text-destructive">{actionError}</p>
+                              ) : null}
+                              {poCreated ? (
+                                <p className="text-sm text-muted-foreground">
+                                  Purchase order created.
+                                </p>
+                              ) : null}
+
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  disabled={poCreated || isCreating}
+                                  onClick={() =>
+                                    void createPurchaseOrderForRecommendation(
+                                      message.id,
+                                      index,
+                                      recommendation
+                                    )
+                                  }
+                                >
+                                  {isCreating ? "Creating…" : "Create Purchase Order"}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={poCreated || isCreating}
+                                  onClick={() => rejectRecommendation(message.id, index)}
+                                >
+                                  Reject
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )
+                      })
                   ) : (
                     <pre className="overflow-x-auto border border-border bg-muted p-3 text-xs text-foreground">
                       {JSON.stringify(message.structuredOutput, null, 2)}

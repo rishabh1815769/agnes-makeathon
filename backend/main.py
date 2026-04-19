@@ -3,6 +3,7 @@ import json
 import os
 import sqlite3
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -107,6 +108,31 @@ class CompanySummary(BaseModel):
     ProductCount: int
     SupplierCount: int
     SupplierNames: list[str] = Field(default_factory=list)
+
+
+class PurchaseOrderCreate(BaseModel):
+    supplier_name: str = Field(min_length=1)
+    sku: str = Field(min_length=1)
+
+
+class PurchaseOrder(BaseModel):
+    id: int
+    supplier_name: str
+    sku: str
+    created_at: str
+
+
+def _ensure_purchase_orders_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS PurchaseOrder (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            supplier_name TEXT NOT NULL,
+            sku TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
 
 
 def _part_text(part: Any) -> str:
@@ -351,6 +377,71 @@ async def list_companies(limit: int | None = Query(default=None, ge=1, le=200000
         raise HTTPException(
             status_code=500,
             detail="Failed to read companies from database.",
+        ) from exc
+
+
+@app.get("/api/purchase-orders", response_model=list[PurchaseOrder])
+async def list_purchase_orders() -> list[PurchaseOrder]:
+    if not DB_PATH.exists():
+        raise HTTPException(status_code=500, detail="Products database file is missing.")
+
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            _ensure_purchase_orders_table(conn)
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT id, supplier_name, sku, created_at
+                FROM PurchaseOrder
+                ORDER BY datetime(created_at) DESC, id DESC
+                """
+            ).fetchall()
+
+        return [PurchaseOrder(**dict(row)) for row in rows]
+    except sqlite3.Error as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to read purchase orders from database.",
+        ) from exc
+
+
+@app.post("/api/purchase-orders", response_model=PurchaseOrder)
+async def create_purchase_order(body: PurchaseOrderCreate) -> PurchaseOrder:
+    supplier_name = body.supplier_name.strip()
+    sku = body.sku.strip()
+    if not supplier_name or not sku:
+        raise HTTPException(status_code=400, detail="supplier_name and sku must be non-empty.")
+
+    if not DB_PATH.exists():
+        raise HTTPException(status_code=500, detail="Products database file is missing.")
+
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            _ensure_purchase_orders_table(conn)
+            cursor = conn.execute(
+                """
+                INSERT INTO PurchaseOrder (supplier_name, sku, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (supplier_name, sku, created_at),
+            )
+            new_id = cursor.lastrowid
+
+        if new_id is None:
+            raise HTTPException(status_code=500, detail="Failed to create purchase order.")
+
+        return PurchaseOrder(
+            id=int(new_id),
+            supplier_name=supplier_name,
+            sku=sku,
+            created_at=created_at,
+        )
+    except sqlite3.Error as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create purchase order.",
         ) from exc
 
 
