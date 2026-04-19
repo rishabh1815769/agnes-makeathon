@@ -186,15 +186,14 @@ async def healthz() -> dict[str, str]:
 
 
 @app.get("/api/products", response_model=list[ProductSummary])
-async def list_products(limit: int = Query(default=500, ge=1, le=2000)) -> list[ProductSummary]:
+async def list_products(limit: int | None = Query(default=None, ge=1, le=200000)) -> list[ProductSummary]:
     if not DB_PATH.exists():
         raise HTTPException(status_code=500, detail="Products database file is missing.")
 
     try:
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                """
+            query = """
                 SELECT
                     p.Id,
                     p.SKU,
@@ -205,10 +204,13 @@ async def list_products(limit: int = Query(default=500, ge=1, le=2000)) -> list[
                 FROM Product p
                 LEFT JOIN Company c ON c.Id = p.CompanyId
                 ORDER BY p.Id
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
+                """
+            params: tuple[Any, ...] = ()
+            if limit is not None:
+                query += "\n                LIMIT ?"
+                params = (limit,)
+
+            rows = conn.execute(query, params).fetchall()
 
         return [ProductSummary(**dict(row)) for row in rows]
     except sqlite3.Error as exc:
@@ -219,15 +221,14 @@ async def list_products(limit: int = Query(default=500, ge=1, le=2000)) -> list[
 
 
 @app.get("/api/suppliers", response_model=list[SupplierSummary])
-async def list_suppliers(limit: int = Query(default=500, ge=1, le=2000)) -> list[SupplierSummary]:
+async def list_suppliers(limit: int | None = Query(default=None, ge=1, le=200000)) -> list[SupplierSummary]:
     if not DB_PATH.exists():
         raise HTTPException(status_code=500, detail="Suppliers database file is missing.")
 
     try:
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                """
+            query = """
                 SELECT
                     s.Id,
                     s.Name,
@@ -236,10 +237,13 @@ async def list_suppliers(limit: int = Query(default=500, ge=1, le=2000)) -> list
                 LEFT JOIN Supplier_Product sp ON sp.SupplierId = s.Id
                 GROUP BY s.Id, s.Name
                 ORDER BY s.Name
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
+                """
+            params: tuple[Any, ...] = ()
+            if limit is not None:
+                query += "\n                LIMIT ?"
+                params = (limit,)
+
+            rows = conn.execute(query, params).fetchall()
 
         return [SupplierSummary(**dict(row)) for row in rows]
     except sqlite3.Error as exc:
@@ -250,15 +254,14 @@ async def list_suppliers(limit: int = Query(default=500, ge=1, le=2000)) -> list
 
 
 @app.get("/api/groups", response_model=list[GroupSummary])
-async def list_groups(limit: int = Query(default=500, ge=1, le=2000)) -> list[GroupSummary]:
+async def list_groups(limit: int | None = Query(default=None, ge=1, le=200000)) -> list[GroupSummary]:
     if not DB_PATH.exists():
         raise HTTPException(status_code=500, detail="Groups database file is missing.")
 
     try:
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                """
+            query = """
                 SELECT
                     p.SKU,
                     CASE
@@ -282,10 +285,13 @@ async def list_groups(limit: int = Query(default=500, ge=1, le=2000)) -> list[Gr
                     ) AS SupplierProductCount
                 FROM Product p
                 ORDER BY p.SKU
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
+                """
+            params: tuple[Any, ...] = ()
+            if limit is not None:
+                query += "\n                LIMIT ?"
+                params = (limit,)
+
+            rows = conn.execute(query, params).fetchall()
 
         return [GroupSummary(**dict(row)) for row in rows]
     except sqlite3.Error as exc:
@@ -296,15 +302,14 @@ async def list_groups(limit: int = Query(default=500, ge=1, le=2000)) -> list[Gr
 
 
 @app.get("/api/companies", response_model=list[CompanySummary])
-async def list_companies(limit: int = Query(default=500, ge=1, le=2000)) -> list[CompanySummary]:
+async def list_companies(limit: int | None = Query(default=None, ge=1, le=200000)) -> list[CompanySummary]:
     if not DB_PATH.exists():
         raise HTTPException(status_code=500, detail="Companies database file is missing.")
 
     try:
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                """
+            query = """
                 SELECT
                     c.Id,
                     c.Name,
@@ -317,10 +322,13 @@ async def list_companies(limit: int = Query(default=500, ge=1, le=2000)) -> list
                 LEFT JOIN Supplier s ON s.Id = sp.SupplierId
                 GROUP BY c.Id, c.Name
                 ORDER BY c.Name
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
+                """
+            params: tuple[Any, ...] = ()
+            if limit is not None:
+                query += "\n                LIMIT ?"
+                params = (limit,)
+
+            rows = conn.execute(query, params).fetchall()
 
         result: list[CompanySummary] = []
         for row in rows:
