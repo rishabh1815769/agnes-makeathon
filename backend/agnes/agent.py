@@ -132,7 +132,7 @@ def find_similar_material(material: str) -> list[dict]:
     return profiles
 
 root_agent = Agent(
-    model='gemma-4-31b-it',
+    model='gemini-2.5-flash',
     name='agnes_agent',
     description='Make sure to follow the instructions carefully and use the provided tools to find the information needed',
     instruction=INSTRUCTION_PATH.read_text(encoding='utf-8'),
