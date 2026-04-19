@@ -228,6 +228,12 @@ Set `NEXT_PUBLIC_BACKEND_URL` if the API is not on `http://localhost:8000`. The 
 
 ---
 
+## Future work
+
+**Enrichment and supplier automation.** The current enrichment flow is driven by the Hermes harness and manual or batch-style research over the web. A natural next step is to deepen that pipeline with **custom agents** built for **browser automation**: navigating supplier sites, extracting structured data from product and compliance pages, and **submitting or completing forms** where portals expose self-service updates or quote requests. Pairing those agents with **background jobs** (triggered when **new raw materials** or **new suppliers** land in SQLite) would keep `material_profile` and related fields **continuously refreshed** without requiring a separate enrichment run for every schema or catalog change.
+
+---
+
 ## License / attribution
 
 Dataset and challenge framing belong to the **Spherecast** / hackathon organizers; this repo is a team submission implementing the described use case over the provided SQLite dump.
